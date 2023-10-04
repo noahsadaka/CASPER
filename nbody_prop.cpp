@@ -1,62 +1,37 @@
+// Standard Imports
 #include <iostream>
 #include <stdio.h>
 #include <cstdlib>
 #include <vector>
 #include <string>
+
+// SPICE toolkit
 #include "SpiceUsr.h"
+
+// User-created headers
+#include "SpiceBodies.h"
+#include "ephem_utils.h"
+
+//Pybind and Boost
 #include "pybind11/pybind11.h"
 #include <boost/numeric/odeint.hpp>
 #include <boost/numeric/ublas/io.hpp>
+
 using namespace std; 
+namespace py = pybind11;
 
-int kernelify(){
-string fullk_path;
-string gen_ken= "generic_kernels.tm";
-string full_ken;
-fullk_path = getenv("KERNEL_PATH");
-full_ken = fullk_path + gen_ken;
-furnsh_c(full_ken.c_str());
-int tot;
-ktotal_c("ALL", &tot);
-return tot;
-}
-
-int add_numbers(int a, int b)
-{
-	int c;
-	c = kernelify();
-	return c;
-}
-
-
-
-//int main()
-//{
-//SpiceDouble et;
-//string fullk_path;
-//string gen_ken= "generic_kernels.tm";
-//string full_ken;
-//fullk_path = getenv("KERNEL_PATH");
-
-//full_ken = fullk_path + gen_ken;
-//furnsh_c(full_ken.c_str());
-//str2et_c("September 17, 1996", &et);
-//SpiceInt kernelcount;
-//ktotal_c("ALL", &kernelcount);
-
-//cout << et << endl;
-//cout << kernelcount << " kernels loaded" << endl;
-
-//int a, b, c;
-//a = 1;
-//b = 2;
-//c = add_numbers(a,b);
-//cout << c << endl;
-//} 
-
-PYBIND11_MODULE(spicetest, m) {
+PYBIND11_MODULE(casper, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
-    m.def("add_numbers", &add_numbers, "A function that adds two numbers");
+    py::class_<SpiceBody>(m, "SpiceBody")
+	    .def(py::init<const string &, const int &, const double &>())
+	    .def_readonly("name", &SpiceBody::name)
+	    .def_readonly("ID", &SpiceBody::ID)
+	    .def_readonly("mu", &SpiceBody::mu);
+
+    m.def("load_kernels", &load_kernels);
+
+    m.def("str2et", &str2et);
 }
+
 
