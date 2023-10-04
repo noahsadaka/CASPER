@@ -20,6 +20,10 @@
 using namespace std; 
 namespace py = pybind11;
 
+class nbody{
+
+};
+
 PYBIND11_MODULE(casper, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
@@ -32,6 +36,9 @@ PYBIND11_MODULE(casper, m) {
     m.def("load_kernels", &load_kernels);
 
     m.def("str2et", &str2et);
+
+    py::class_<nbody>(m, "nbody")
+	    .def(py::init<>());
 }
 
 
