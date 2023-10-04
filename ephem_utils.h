@@ -5,9 +5,26 @@
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <iomanip>
 
 // SPICE toolkit
 #include "SpiceUsr.h"
+
+// Spice Bodies
+#include "SpiceBodies.h"
+
+//From Dale! Thanks Dale
+template <class T>
+void print_vector(std::vector<T> vec)
+{
+	std::cout << "[ ";
+	for (T j : vec)
+	{
+		std::cout <<std::setprecision(10)<< j;
+		std::cout << " ";
+	}
+	std::cout << "]" << std::endl;
+}
 
 
 int load_kernels(){
