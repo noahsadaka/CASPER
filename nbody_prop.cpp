@@ -252,9 +252,11 @@ PYBIND11_MODULE(casper, m) {
 
     m.def("str2et", &str2et);
 
-    //py::class_<NBODY>(m, "nbody")
-//	    .def(py::init<state_type, string >())
-//	    .def_readonly("base_epoch", &NBODY::base_epoch);
+    py::class_<NBODY>(m, "nbody")
+	    .def(py::init<state_type &, string, const double, const double, SpiceBody, std::vector<SpiceBody>>())
+	    .def_readonly("base_epoch", &NBODY::base_epoch_nd)
+	    .def_readonly("IC", &NBODY::IC_nd)
+	    .def("EOM", &NBODY::EOM_STM);
 
     //py::class_<cr3bp_system>(m, "cr3bp_system")
 //	    .def(py::init<const double, const double>())
