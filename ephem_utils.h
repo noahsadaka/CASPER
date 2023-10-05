@@ -13,7 +13,7 @@
 // Spice Bodies
 #include "SpiceBodies.h"
 
-//From Dale! Thanks Dale
+// From Dale! Thanks Dale
 template <class T>
 void print_vector(std::vector<T> vec)
 {

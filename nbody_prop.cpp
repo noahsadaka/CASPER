@@ -96,8 +96,11 @@ NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
 	n_IC(IC.size()),
 	central_body(central),
 	perturbing_bodies(perturbing)
-	{
-	// actual function here
+	{// actual function here
+	// Check that len(IC) = 6 or 42
+	if (IC.size() != 6 && IC.size() != 42){
+		throw std::length_error("IC is not length 6 or 42");
+	}
 	SpiceDouble base_epoch;
 	base_epoch = str2et(str_epoch);
 
