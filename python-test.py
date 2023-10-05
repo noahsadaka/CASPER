@@ -1,14 +1,14 @@
 import casper
+import numpy as np
 import bodies as bo
-import crtbp
+from crtbp import EMsys
+import matplotlib.pyplot as plt
+import time
+import ephemeristools as et
 
-sys = crtbp.EMsys
-Earth = casper.SpiceBody("EARTH", 399, 3.9860043543609593e+05);
-Moon = casper.SpiceBody("MOON", 301, 4.9028000661637961e+03);
-Sun = casper.SpiceBody("SUN", 10, 1.3271244004193930e+11);
-Jupiter = casper.SpiceBody("JUPITER BARYCENTER", 5, 126712767.8578);
+sys = EMsys
 
-IC = [1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279, 1,
+IC = [ 0.18889952, -0.86798499, -0.34129653,  0.48008814,  0.11764799,  0.00512411,
           1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
@@ -16,8 +16,17 @@ IC = [1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279, 1,
           0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+start_time = time.time()
+nbody = casper.PyNbody(IC, "March 1, 2000, 00:00:00.0000", sys.m_star, sys.l_star, 5)
+print(time.time()-start_time)
 
-nbody = casper.nbody(IC, "May 2, 2022", sys.m_star, sys.l_star, Earth, [Moon])
-PO = casper.PropObserver()
-nbody.propagate(nbody.base_epoch + 3, 1e-5, 1e-12, 1e-12, PO)
-print(PO.t)
+
+
+t = nbody.t_states;
+print(t[-1])
+x = np.asarray(nbody.x_states);
+plt.plot(x[:,0], x[:,1])
+plt.gca().set_aspect('equal')
+plt.show()
+#print(nbody.t_states)
+#print(nbody.x_states)

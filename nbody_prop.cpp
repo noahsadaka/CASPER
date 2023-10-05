@@ -81,7 +81,7 @@ class NBODY{
 		std::vector<double> build_A_matrix(state_type &A_sub);
 
 		// propagator function
-		void propagate(double TOF, double step_size, double rt, double at, PropObserver o);
+		void propagate(double TOF, double step_size, double rt, double at, PropObserver &o);
 };
 
 // Define NBODY class Constructor
@@ -261,7 +261,7 @@ std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
 	return A;
 };
 
-void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver o){
+void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver &o){
 	namespace pl = std::placeholders;
 	state_type states_and_times;
 	// check propagation direction
@@ -274,6 +274,29 @@ void NBODY::propagate(double t_end, double step_size, double rtol, double atol, 
 	size_t steps;
 
 	steps = integrate_adaptive(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3), IC, base_epoch_nd, t_end, step_size, std::ref(o));
+};
+
+class PYNBODY{
+	public:
+	PYNBODY(state_type &IC, string str_epoch, const double m, const double l, double TOF){
+	double G;
+	G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2
+	SpiceBody Earth("EARTH", 399, 3.9860043543609593e+05);
+	SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
+	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
+	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
+
+	NBODY nbody_sys(IC, str_epoch, m, l, Earth, {Moon, Sun, Jupiter});
+	PropObserver observer{}; 
+	nbody_sys.propagate(nbody_sys.base_epoch_nd + TOF, 1e-3, 1e-12, 1e-12, observer);
+	x_states = observer.x;
+	t_states = observer.t;
+	}
+
+	// Attributes
+	state_type t_states;
+	std::vector<std::vector<double>> x_states;
+
 };
 
 #ifdef PYTHON_COMPILE
@@ -299,13 +322,15 @@ PYBIND11_MODULE(casper, m) {
 	    .def_readonly("t", &PropObserver::t)
 	    .def_readonly("x", &PropObserver::x);
 
-    //py::class_<cr3bp_system>(m, "cr3bp_system")
-//	    .def(py::init<const double, const double>())
-//	    .def_readonly("m_star", &cr3bp_system::m_star)
-//	    .def_readonly("l_star", &cr3bp_system::l_star)
-//	    .def_readonly("t_star", &cr3bp_system::t_star);
+    py::class_<PYNBODY>(m, "PyNbody")
+	    .def(py::init<state_type &, string, const double, const double, double>())
+	    .def_readonly("x_states", &PYNBODY::x_states)
+	    .def_readonly("t_states", &PYNBODY::t_states);
+
 }
 #endif
+
+#ifndef PYTHON_COMPILE
 
 int main(){
 	cout<<"testing file starts here"<<endl;
@@ -331,5 +356,7 @@ int main(){
 	NBODY nbody_system(IC_vector, "May 2, 2022", m_star, l_star, Earth, {Moon});
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};
-	nbody_system.propagate(nbody_system.base_epoch_nd + 3, 1e-5, 1e-12, 1e-12, obs);
+	nbody_system.propagate(nbody_system.base_epoch_nd + 3, 1e-3, 1e-12, 1e-12, obs);
+	//print_vector(obs.t);
 };
+#endif
