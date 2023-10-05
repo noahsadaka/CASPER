@@ -21,12 +21,25 @@
 #include <boost/numeric/ublas/io.hpp>
 
 using namespace std; 
+using namespace boost::numeric::odeint;
 
 #ifdef PYTHON_COMPILE
 namespace py = pybind11;
 #endif
 
 typedef std::vector<double> state_type;
+
+class PropObserver{
+	public:
+		std::vector<std::vector<double>> x; // integration states
+		state_type t; // integration times
+
+		void operator()(const state_type &x_curr, const double t_curr){
+			t.push_back(t_curr);
+			x.push_back(x_curr);
+		};
+};
+
 
 class cr3bp_system{
 	public:
@@ -45,10 +58,8 @@ class NBODY{
 	public:
 		
 		// Attributes
-		state_type IC; // initial condition, 42-vector
-		state_type IC_nd; // initial condition in non-dim coordinates
-		SpiceDouble base_epoch; // base epoch, in seconds ephemeris time
-		SpiceDouble base_epoch_nd; // base epoch, in non-dim seconds
+		state_type IC; // initial condition, 42-vector, non-dim
+		SpiceDouble base_epoch_nd; // base epoch, in non-dim seconds ephemeris time
 		cr3bp_system sys; // CR3BP object used for non-dimensionalization
 		SpiceBody central_body; // Body at center of inertial J2000 frame
 		std::vector<SpiceBody> perturbing_bodies; // Perturbing bodies
@@ -68,34 +79,36 @@ class NBODY{
 
 		// A matrix creation function declaration
 		std::vector<double> build_A_matrix(state_type &A_sub);
+
+		// propagator function
+		void propagate(double TOF, double step_size, double rt, double at, PropObserver o);
 };
 
 // Define NBODY class Constructor
 NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
 	SpiceBody central, std::vector<SpiceBody> perturbing):
+	// member definition, necessary for the cr3bp class
 	IC(ic),
 	sys(m, l),
 	central_body(central),
 	perturbing_bodies(perturbing)
 	{
+	// actual function here
+	SpiceDouble base_epoch;
 	base_epoch = str2et(str_epoch);
-	// non-dimensionalize the epoch and initial conditions
+	// non-dimensionalize the epoch
 	base_epoch_nd = base_epoch/sys.t_star;
-	IC_nd = IC;
-        IC_nd[0] = IC_nd[0]/sys.l_star;
-	IC_nd[1] = IC_nd[1]/sys.l_star;
-        IC_nd[2] = IC_nd[2]/sys.l_star;
-	IC_nd[3] = IC_nd[3]/sys.l_star*sys.t_star;
-	IC_nd[4] = IC_nd[4]/sys.l_star*sys.t_star;
-       	IC_nd[5] = IC_nd[5]/sys.l_star*sys.t_star;
-	load_kernels(); // make sure kernels are loaded
-	}
+
+	// make sure kernels are loaded
+	load_kernels(); 
+};
 
 // EOMs with STM propagation
 void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 	state_type acc(3,0);
   	state_type A_subset (9,0);
 	
+	// get acceleration and A matrix contribution from central body
 	get_primary_acceleration(state, acc, A_subset);	
 
 	// iterate through perturbing body list to get acceleration and A matrix contributions
@@ -129,28 +142,32 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
                   }
               }
           }
-	print_vector(d_state);
-      };
+     };
 
 // Primary Acceleration
 void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, state_type &A_subset){
 	const double G ((6.67430e-11/pow(1000,3)));
 	const double mass (central_body.mu/G/sys.m_star);
+	
+	// extract only position components of state
 	state_type r_sc_b {state[0], state[1], state[2]};
 
 	const double r_sc_b_n = sqrt(r_sc_b[0]*r_sc_b[0] + r_sc_b[1]*r_sc_b[1] + r_sc_b[2]*r_sc_b[2]);
 	const double r_sc_b_n_5 = pow(r_sc_b_n, 5);
 	const double r_sc_b_n_3 = pow(r_sc_b_n, 3);
-
+	
+	// makes it easier to write and read
 	double x, y, z;
 	x = r_sc_b[0];
 	y = r_sc_b[1];
 	z = r_sc_b[2];
-
+	
+	// acceleration terms
 	acc[0] -= mass * x / r_sc_b_n_3;
 	acc[1] -= mass * y / r_sc_b_n_3;
 	acc[2] -= mass * z / r_sc_b_n_3;
-
+	
+	// STM terms
 	A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
 	A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
 	A_subset[2] += mass * 3 * x * z / r_sc_b_n_5;
@@ -166,15 +183,19 @@ void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, s
 void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	int central_body_ID, cr3bp_system sys, const state_type &state,
 	state_type &acc, state_type &A_subset){
-
+	
+	// variables
 	const double G ((6.67430e-11/pow(1000,3)));
 	const double mass (pert_body.mu/G/sys.m_star);
 	const double t_star (sys.t_star);
 	SpiceDouble body_position [3], lighttimes;
 	SpiceDouble epoch_dim (t*t_star);
 	
-	spkpos_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE", to_string(central_body_ID).c_str(), body_position, &lighttimes);
+	// get position of perturbing body WRT central body	
+	spkpos_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE",
+		 to_string(central_body_ID).c_str(), body_position, &lighttimes);
 	//cout<< body_position[0]<<endl;
+	// non dimensionalize planet position
 	body_position[0] = body_position[0]/sys.l_star;
 	body_position[1] = body_position[1]/sys.l_star;
 	body_position[2] = body_position[2]/sys.l_star;
@@ -183,8 +204,10 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	double r_sc_b_n, r_sc_b_n_3, r_sc_b_n_5, x, y, z;
 	double x_o, y_o, z_o;
 	double r_b_o_n, r_b_o_n_3;
-
+	
+	// Vector pointing from perturbing body to spacecraft
 	r_sc_body = {state[0] - body_position[0], state[1] - body_position[1], state[2] - body_position[2]};
+	// Vector pointing from central body to perturbing body
 	r_body_obs = {-1 * body_position[0],-1 * body_position[1], -1 * body_position[2]};
 	// norm of spacecraft to central body vector
 	r_sc_b_n = sqrt(pow(r_sc_body[0],2) + pow(r_sc_body[1],2)+ pow(r_sc_body[2],2));
@@ -198,7 +221,7 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	x = r_sc_body[0];
 	y = r_sc_body[1];
 	z = r_sc_body[2];
-	// state of r_body_obs vector
+	// states of r_body_obs vector
 	x_o = r_body_obs[0];
 	y_o = r_body_obs[1];
 	z_o = r_body_obs[2];
@@ -238,7 +261,20 @@ std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
 	return A;
 };
 
+void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver o){
+	namespace pl = std::placeholders;
+	state_type states_and_times;
+	// check propagation direction
+	if (t_end < base_epoch_nd) {step_size = - step_size;}
 
+	typedef runge_kutta_fehlberg78<state_type> rk78;
+
+	auto stepper = make_controlled<rk78>(atol, rtol);
+
+	size_t steps;
+
+	steps = integrate_adaptive(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3), IC, base_epoch_nd, t_end, step_size, std::ref(o));
+};
 
 #ifdef PYTHON_COMPILE
 PYBIND11_MODULE(casper, m) {
@@ -255,8 +291,13 @@ PYBIND11_MODULE(casper, m) {
     py::class_<NBODY>(m, "nbody")
 	    .def(py::init<state_type &, string, const double, const double, SpiceBody, std::vector<SpiceBody>>())
 	    .def_readonly("base_epoch", &NBODY::base_epoch_nd)
-	    .def_readonly("IC", &NBODY::IC_nd)
-	    .def("EOM", &NBODY::EOM_STM);
+	    .def_readonly("IC", &NBODY::IC)
+	    .def("propagate", &NBODY::propagate);
+
+    py::class_<PropObserver>(m, "PropObserver")
+	    .def(py::init<>())
+	    .def_readonly("t", &PropObserver::t)
+	    .def_readonly("x", &PropObserver::x);
 
     //py::class_<cr3bp_system>(m, "cr3bp_system")
 //	    .def(py::init<const double, const double>())
@@ -277,10 +318,18 @@ int main(){
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
 	//cr3bp_system crtbp_sys((Earth.mu+Moon.mu)/G, 3.8474799197904585e+05);
 	//cout << setprecision(17) << crtbp_sys.t_star << endl;
-	state_type IC_vector {1, 2, 3, 4, 5, 6, 1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1};
+	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279, 1,
+          1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
 	NBODY nbody_system(IC_vector, "May 2, 2022", m_star, l_star, Earth, {Moon});
-	nbody_system.EOM_STM(nbody_system.IC_nd, nbody_system.IC_nd, nbody_system.base_epoch_nd);	
-
+	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
+	PropObserver obs{};
+	nbody_system.propagate(nbody_system.base_epoch_nd + 3, 1e-5, 1e-12, 1e-12, obs);
 };
