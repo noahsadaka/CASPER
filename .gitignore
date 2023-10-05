@@ -9,3 +9,4 @@ CMake*
 build.sh
 python-test.py
 testing
+*.ninja*
