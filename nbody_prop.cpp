@@ -60,6 +60,7 @@ class NBODY{
 		// Attributes
 		state_type IC; // initial condition, 42-vector, non-dim
 		const unsigned int n_IC; // number of states, should be 6 or 42
+		bool prop_STM;
 		SpiceDouble base_epoch_nd; // base epoch, in non-dim seconds ephemeris time
 		cr3bp_system sys; // CR3BP object used for non-dimensionalization
 		SpiceBody central_body; // Body at center of inertial J2000 frame
@@ -98,9 +99,11 @@ NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
 	perturbing_bodies(perturbing)
 	{// actual function here
 	// Check that len(IC) = 6 or 42
-	if (IC.size() != 6 && IC.size() != 42){
+	if (n_IC != 6 && n_IC != 42){
 		throw std::length_error("IC is not length 6 or 42");
-	}
+	} else if (n_IC == 6){prop_STM = false;}
+	else {prop_STM = true;}
+	
 	SpiceDouble base_epoch;
 	base_epoch = str2et(str_epoch);
 
@@ -126,9 +129,6 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 				acc, A_subset);
 	}
 
-	// Create the 6x6 A matrix from the 3x3 subset 
-	state_type A;
-	A = build_A_matrix(A_subset);
 
 	// Velocity terms
 	d_state[0] = state[3];
@@ -137,21 +137,28 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 	d_state[3] = acc[0];
 	d_state[4] = acc[1];
 	d_state[5] = acc[2];
+
+	if (prop_STM) {
+		// Create the 6x6 A matrix from the 3x3 subset 
+		state_type A;
+		A = build_A_matrix(A_subset);
 	
-	// Do the phi_dot = A * phi computation. Took this from Nick and RJ, thanks Nick and RJ!
-	int state_size = 6;
-	for (int i = 0; i < state_size; i++) {
-              for (int j = 0; j < state_size; j++) {
-                  unsigned int current_index = state_size + i * state_size + j;
+		// Do the phi_dot = A * phi computation. Took this from Nick and RJ, thanks Nick and RJ!
+		int state_size = 6;
+		for (int i = 0; i < state_size; i++) {
+        	      for (int j = 0; j < state_size; j++) {
+                	  unsigned int current_index = state_size + i * state_size + j;
 
-                  d_state[current_index] = 0.0;
-
-                  for (int k = 0; k < state_size; k++) {
-                      d_state[current_index] += A[i * state_size + k] * state[state_size + state_size * k + j];
-                  }
-              }
-          }
+	                  d_state[current_index] = 0.0;
+	
+        	          for (int k = 0; k < state_size; k++) {
+                	      d_state[current_index] += A[i * state_size + k] * state[state_size + state_size * k + j];
+	                  }
+        	      }
+	          }
+	}
      };
+
 
 // Primary Acceleration
 void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, state_type &A_subset){
@@ -176,16 +183,18 @@ void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, s
 	acc[1] -= mass * y / r_sc_b_n_3;
 	acc[2] -= mass * z / r_sc_b_n_3;
 	
-	// STM terms
-	A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-	A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
-	A_subset[2] += mass * 3 * x * z / r_sc_b_n_5;
-	A_subset[3] += mass * 3 * x * y / r_sc_b_n_5;
-	A_subset[4] += mass * (3 * pow(y, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-	A_subset[5] += mass * 3 * y * z / r_sc_b_n_5;
-	A_subset[6] += mass * 3 * x * z / r_sc_b_n_5;
-	A_subset[7] += mass * 3 * y * z / r_sc_b_n_5;
-	A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+	if (prop_STM){	
+		// STM terms
+		A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
+		A_subset[2] += mass * 3 * x * z / r_sc_b_n_5;
+		A_subset[3] += mass * 3 * x * y / r_sc_b_n_5;
+		A_subset[4] += mass * (3 * pow(y, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[5] += mass * 3 * y * z / r_sc_b_n_5;
+		A_subset[6] += mass * 3 * x * z / r_sc_b_n_5;
+		A_subset[7] += mass * 3 * y * z / r_sc_b_n_5;
+		A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+	}
 };
 
 // Perturbing acceleration
@@ -243,17 +252,19 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	acc[0] -= mass * (x / r_sc_b_n_3 - x_o / r_b_o_n_3);
 	acc[1] -= mass * (y / r_sc_b_n_3 - y_o / r_b_o_n_3);
 	acc[2] -= mass * (z / r_sc_b_n_3 - z_o / r_b_o_n_3);
-
+	
+	if (prop_STM){
 	// Add perturbing contributions to A matrix
-	A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-	A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
-	A_subset[2] += mass * 3 * x * z /r_sc_b_n_5;
-	A_subset[3] += mass * 3 * x * y / r_sc_b_n_5;
-	A_subset[4] += mass * (3 * pow(y, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-	A_subset[5] += mass * (3 * y * z / r_sc_b_n_5);
-	A_subset[6] += mass * 3 * x * z /r_sc_b_n_5;
-	A_subset[7] += mass * (3 * y * z / r_sc_b_n_5);
-	A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
+		A_subset[2] += mass * 3 * x * z /r_sc_b_n_5;
+		A_subset[3] += mass * 3 * x * y / r_sc_b_n_5;
+		A_subset[4] += mass * (3 * pow(y, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[5] += mass * (3 * y * z / r_sc_b_n_5);
+		A_subset[6] += mass * 3 * x * z /r_sc_b_n_5;
+		A_subset[7] += mass * (3 * y * z / r_sc_b_n_5);
+		A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+	}
 };
 
 std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
@@ -368,13 +379,13 @@ int main(){
 	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
 	// Define 42-state vector. Taken from RJ and Nick's CR3BP code
-	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279,
-          1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-          0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-          0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-          0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279};//,
+          //1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          //0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+          //0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+          //0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+          //0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+          //0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
 	NBODY nbody_system(IC_vector, "May 2, 2022", m_star, l_star, Earth, {Moon});
@@ -382,6 +393,6 @@ int main(){
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};
 	nbody_system.propagate(nbody_system.base_epoch_nd + 3, 1e-3, 1e-12, 1e-12, obs);
-	//print_vector(obs.t);
+	cout << obs.x[0].size() << endl;
 };
 #endif
