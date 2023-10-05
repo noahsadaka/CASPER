@@ -31,10 +31,10 @@ typedef std::vector<double> state_type;
 
 class PropObserver{
 	public:
-		std::vector<std::vector<double>> x; // integration states
-		state_type t; // integration times
+        std::vector<std::vector<double>> x; // integration states
+        state_type t; // integration times
 
-		void operator()(const state_type &x_curr, const double t_curr){
+        void operator()(const state_type &x_curr, const double t_curr){
 			t.push_back(t_curr);
 			x.push_back(x_curr);
 		};
@@ -146,18 +146,18 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 		// Do the phi_dot = A * phi computation. Took this from Nick and RJ, thanks Nick and RJ!
 		int state_size = 6;
 		for (int i = 0; i < state_size; i++) {
-        	      for (int j = 0; j < state_size; j++) {
-                	  unsigned int current_index = state_size + i * state_size + j;
+        	for (int j = 0; j < state_size; j++) {
+                unsigned int current_index = state_size + i * state_size + j;
 
-	                  d_state[current_index] = 0.0;
+	            d_state[current_index] = 0.0;
 	
-        	          for (int k = 0; k < state_size; k++) {
-                	      d_state[current_index] += A[i * state_size + k] * state[state_size + state_size * k + j];
-	                  }
-        	      }
-	          }
-	}
-     };
+        	    for (int k = 0; k < state_size; k++) {
+                    d_state[current_index] += A[i * state_size + k] * state[state_size + state_size * k + j];
+                    }
+                }
+            }
+        }
+    };
 
 
 // Primary Acceleration

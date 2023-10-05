@@ -1,0 +1,11 @@
+__pycache__/
+build/
+__init__.py
+*.so
+*.ninja
+CMakeFiles/
+CMake*
+*.cmake
+build.sh
+python-test.py
+testing
