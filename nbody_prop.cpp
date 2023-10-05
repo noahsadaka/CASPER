@@ -59,6 +59,7 @@ class NBODY{
 		
 		// Attributes
 		state_type IC; // initial condition, 42-vector, non-dim
+		const unsigned int n_IC; // number of states, should be 6 or 42
 		SpiceDouble base_epoch_nd; // base epoch, in non-dim seconds ephemeris time
 		cr3bp_system sys; // CR3BP object used for non-dimensionalization
 		SpiceBody central_body; // Body at center of inertial J2000 frame
@@ -75,7 +76,9 @@ class NBODY{
 		void get_primary_acceleration(const state_type &x, state_type &acc, state_type &A_subset);
 
 		// Perturbing acceleration computation function declaration
-		void get_perturbing_acceleration(const double t, SpiceBody pert_body, int central_body_ID, cr3bp_system sys, const state_type &state, state_type &acc, state_type &A_subset);
+		void get_perturbing_acceleration(const double t, SpiceBody pert_body,
+				int central_body_ID, cr3bp_system sys, const state_type &state,
+				state_type &acc, state_type &A_subset);
 
 		// A matrix creation function declaration
 		std::vector<double> build_A_matrix(state_type &A_sub);
@@ -90,12 +93,14 @@ NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
 	// member definition, necessary for the cr3bp class
 	IC(ic),
 	sys(m, l),
+	n_IC(IC.size()),
 	central_body(central),
 	perturbing_bodies(perturbing)
 	{
 	// actual function here
 	SpiceDouble base_epoch;
 	base_epoch = str2et(str_epoch);
+
 	// non-dimensionalize the epoch
 	base_epoch_nd = base_epoch/sys.t_star;
 
@@ -114,7 +119,8 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 	// iterate through perturbing body list to get acceleration and A matrix contributions
 	for (int i = 0; i < perturbing_bodies.size(); i++)
 	{
-		get_perturbing_acceleration(t, perturbing_bodies[i], central_body.ID, sys, state, acc, A_subset);
+		get_perturbing_acceleration(t, perturbing_bodies[i], central_body.ID, sys, state,
+				acc, A_subset);
 	}
 
 	// Create the 6x6 A matrix from the 3x3 subset 
@@ -194,7 +200,7 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	// get position of perturbing body WRT central body	
 	spkpos_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE",
 		 to_string(central_body_ID).c_str(), body_position, &lighttimes);
-	//cout<< body_position[0]<<endl;
+
 	// non dimensionalize planet position
 	body_position[0] = body_position[0]/sys.l_star;
 	body_position[1] = body_position[1]/sys.l_star;
@@ -207,12 +213,15 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	
 	// Vector pointing from perturbing body to spacecraft
 	r_sc_body = {state[0] - body_position[0], state[1] - body_position[1], state[2] - body_position[2]};
+
 	// Vector pointing from central body to perturbing body
 	r_body_obs = {-1 * body_position[0],-1 * body_position[1], -1 * body_position[2]};
+
 	// norm of spacecraft to central body vector
 	r_sc_b_n = sqrt(pow(r_sc_body[0],2) + pow(r_sc_body[1],2)+ pow(r_sc_body[2],2));
 	r_sc_b_n_3 = pow(r_sc_b_n,3);
 	r_sc_b_n_5 = pow(r_sc_b_n,5);
+
 	// norm of perturbing to central body vector
 	r_b_o_n = sqrt(pow(r_body_obs[0],2) + pow(r_body_obs[1],2)+ pow(r_body_obs[2],2));
 	r_b_o_n_3 = pow(r_b_o_n,3);
@@ -221,14 +230,17 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	x = r_sc_body[0];
 	y = r_sc_body[1];
 	z = r_sc_body[2];
+
 	// states of r_body_obs vector
 	x_o = r_body_obs[0];
 	y_o = r_body_obs[1];
 	z_o = r_body_obs[2];
+
 	// add perturbing accelerations to acceleration vector
 	acc[0] -= mass * (x / r_sc_b_n_3 - x_o / r_b_o_n_3);
 	acc[1] -= mass * (y / r_sc_b_n_3 - y_o / r_b_o_n_3);
 	acc[2] -= mass * (z / r_sc_b_n_3 - z_o / r_b_o_n_3);
+
 	// Add perturbing contributions to A matrix
 	A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
 	A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
@@ -264,63 +276,74 @@ std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
 void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver &o){
 	namespace pl = std::placeholders;
 	state_type states_and_times;
+	
 	// check propagation direction
 	if (t_end < base_epoch_nd) {step_size = - step_size;}
 
+	// define propagator scheme
 	typedef runge_kutta_fehlberg78<state_type> rk78;
 
+	// Create Stepper
 	auto stepper = make_controlled<rk78>(atol, rtol);
 
+	// Integrate the EOMs, capture steps with observer function o
 	size_t steps;
-
-	steps = integrate_adaptive(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3), IC, base_epoch_nd, t_end, step_size, std::ref(o));
+	steps = integrate_adaptive(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3),
+		       IC, base_epoch_nd, t_end, step_size, std::ref(o));
 };
 
 class PYNBODY{
+	// Class that is interfaced with by Python
 	public:
+	// Constructor
 	PYNBODY(state_type &IC, string str_epoch, const double m, const double l, double TOF){
-	double G;
-	G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2
-	SpiceBody Earth("EARTH", 399, 3.9860043543609593e+05);
-	SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
-	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
-	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
+		double G;
+		G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2	
+		// Define bodies
+		SpiceBody Earth("EARTH", 399, 3.9860043543609593e+05);
+		SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
+		SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
+		SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
 
-	NBODY nbody_sys(IC, str_epoch, m, l, Earth, {Moon, Sun, Jupiter});
-	PropObserver observer{}; 
-	nbody_sys.propagate(nbody_sys.base_epoch_nd + TOF, 1e-3, 1e-12, 1e-12, observer);
-	x_states = observer.x;
-	t_states = observer.t;
+		// Initialize our N-body system
+		NBODY nbody_sys(IC, str_epoch, m, l, Earth, {Moon, Sun, Jupiter});
+		
+		// Create observer class
+		PropObserver observer{}; 
+
+		// Run the propagator
+		nbody_sys.propagate(nbody_sys.base_epoch_nd + TOF, 1e-3, 1e-12, 1e-12, observer);
+
+		// Save states and times to class attributes
+		x_states = observer.x;
+		t_states = observer.t;
 	}
 
 	// Attributes
 	state_type t_states;
 	std::vector<std::vector<double>> x_states;
-
 };
 
 #ifdef PYTHON_COMPILE
 PYBIND11_MODULE(casper, m) {
-    m.doc() = "pybind11 example plugin"; // optional module docstring
+    m.doc() = "CASPER - Python ephemeris model integrated in C++"; // optional module docstring
 
-    py::class_<SpiceBody>(m, "SpiceBody")
-	    .def(py::init<const string &, const int &, const double &>())
-	    .def_readonly("name", &SpiceBody::name)
-	    .def_readonly("ID", &SpiceBody::ID)
-	    .def_readonly("mu", &SpiceBody::mu);
+  //  py::class_<SpiceBody>(m, "SpiceBody")
+//	    .def(py::init<const string &, const int &, const double &>())
+//	    .def_readonly("name", &SpiceBody::name)
+//	    .def_readonly("ID", &SpiceBody::ID)
+//	    .def_readonly("mu", &SpiceBody::mu);
 
-    m.def("str2et", &str2et);
+    //py::class_<NBODY>(m, "nbody")
+//	    .def(py::init<state_type &, string, const double, const double, SpiceBody, std::vector<SpiceBody>>())
+//	    .def_readonly("base_epoch", &NBODY::base_epoch_nd)
+//	    .def_readonly("IC", &NBODY::IC)
+//	    .def("propagate", &NBODY::propagate);
 
-    py::class_<NBODY>(m, "nbody")
-	    .def(py::init<state_type &, string, const double, const double, SpiceBody, std::vector<SpiceBody>>())
-	    .def_readonly("base_epoch", &NBODY::base_epoch_nd)
-	    .def_readonly("IC", &NBODY::IC)
-	    .def("propagate", &NBODY::propagate);
-
-    py::class_<PropObserver>(m, "PropObserver")
-	    .def(py::init<>())
-	    .def_readonly("t", &PropObserver::t)
-	    .def_readonly("x", &PropObserver::x);
+  //  py::class_<PropObserver>(m, "PropObserver")
+//	    .def(py::init<>())
+//	    .def_readonly("t", &PropObserver::t)
+//	    .def_readonly("x", &PropObserver::x);
 
     py::class_<PYNBODY>(m, "PyNbody")
 	    .def(py::init<state_type &, string, const double, const double, double>())
@@ -333,7 +356,7 @@ PYBIND11_MODULE(casper, m) {
 #ifndef PYTHON_COMPILE
 
 int main(){
-	cout<<"testing file starts here"<<endl;
+	cout<<"testing part now running"<<endl;
 
 	const double G ((6.67430e-11/pow(1000,3))); //  # km3/kg/s2
 
@@ -341,19 +364,18 @@ int main(){
 	SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
 	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
-	//cr3bp_system crtbp_sys((Earth.mu+Moon.mu)/G, 3.8474799197904585e+05);
-	//cout << setprecision(17) << crtbp_sys.t_star << endl;
-	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279, 1,
-          1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-          0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-          0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+	// Define 42-state vector. Taken from RJ and Nick's CR3BP code
+	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279,
+          1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
 	NBODY nbody_system(IC_vector, "May 2, 2022", m_star, l_star, Earth, {Moon});
+	cout <<"Length of IC: "<< nbody_system.n_IC << endl;
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};
 	nbody_system.propagate(nbody_system.base_epoch_nd + 3, 1e-3, 1e-12, 1e-12, obs);

@@ -29,23 +29,30 @@ traj = solve_ivp(et.Nbody_prop,
                  IC,
                   atol=1e-12,
                   rtol=1e-12,
-                  method='RK45',
+                  method='LSODA',
                   args=(bo.earth, [bo.moon, bo.sun, bo.jupiter_bary], sys))
 print(time.time()-start_time)
 t = nbody.t_states;
 #print(t[-1])
-x = np.asarray(nbody.x_states);
-plt.figure(1)
-plt.plot(x[:,0], x[:,1], label='C++')
-plt.plot(traj.y[0], traj.y[1], label='Py')
-plt.legend()
-plt.gca().set_aspect('equal')
+#x = np.asarray(nbody.x_states);
+#plt.figure(1)
+#plt.plot(x[:,0], x[:,1], label='C++')
+#plt.plot(traj.y[0], traj.y[1], label='SciPy RK45')
+#plt.scatter(x[0,0], x[0,1], label='IC', color='red')
+#plt.grid()
+#plt.xlabel('X [nd]')
+#plt.ylabel('Y [nd]')
+#plt.legend()
+#plt.gca().set_aspect('equal')
 
-plt.figure(2)
-plt.plot(t, x[:,0], label='C++')
-plt.plot(traj.t, traj.y[0], label='Python')
-plt.legend()
-plt.show()
+#plt.figure(2)
+#plt.plot(t, x[:,0], label='C++')
+#plt.plot(traj.t, traj.y[0], label='ScipPy RK45')
+#plt.grid()
+#plt.xlabel('t [nd]')
+#plt.ylabel('X [nd]')
+#plt.legend()
+#plt.show()
 
 
 
