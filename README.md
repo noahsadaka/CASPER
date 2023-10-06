@@ -1,5 +1,5 @@
 # CASPER
-C++ Astrodynamics, SPICE-based, Propagation, Ephemeris Research (name WIP).
+C++ Aided, SPICE-based, Propagation for Ephemeris model Results (name WIP).
 
 A C++ N-body propagation tool that is wrapped with pybind11 to be called from Python.
 
@@ -13,6 +13,7 @@ Very much a work in progress
  - [ ] implement event finding
  - [ ] add options to specify what the central body and perturbing bodies are from Python
  - [ ] Use fewer time steps if integrating for corrections vs integrating for detailed state history and/or plotting
+ - [x] Implement some sort of a smart Spice time class so I can pass it an epoch string or an ET
 
 ## Notes to make this work
  - Need to have a folder with the meta-kernel saved in it with the name "generic_kernels.tm" assigned to an environment variable "KERNEL_PATH"

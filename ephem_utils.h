@@ -11,7 +11,9 @@
 #include "SpiceUsr.h"
 
 // Spice Bodies
-#include "SpiceBodies.h"
+#include "SpiceClasses.h"
+ 
+using namespace std;
 
 // From Dale! Thanks Dale
 template <class T>
@@ -59,6 +61,18 @@ double str2et(string &epoch_string){
 	SpiceDouble et;
 	str2et_c(epoch_string.c_str(), &et);
 	return et;
+};
+
+string et2utc(SpiceDouble et){
+    string format = "C";
+    SpiceInt prec = 5;
+    const unsigned int utc_len = 200;
+    char utc_str_out[utc_len];
+
+    et2utc_c(et, format.c_str(), prec, utc_len, utc_str_out);
+
+    return {utc_str_out};
+
 };
 
 #endif

@@ -9,7 +9,7 @@
 #include "SpiceUsr.h"
 
 // User-created headers
-#include "SpiceBodies.h"
+#include "SpiceClasses.h"
 #include "ephem_utils.h"
 
 //Pybind and Boost
@@ -67,7 +67,7 @@ class NBODY{
 		std::vector<SpiceBody> perturbing_bodies; // Perturbing bodies
 		
 		// Constructor Declaration
-		NBODY(state_type &ic, string str_epoch, const double m, const double l,
+		NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
 			SpiceBody central, std::vector<SpiceBody> perturbing);
 
 		// EOM function declaration
@@ -89,7 +89,7 @@ class NBODY{
 };
 
 // Define NBODY class Constructor
-NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
+NBODY::NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
 	SpiceBody central, std::vector<SpiceBody> perturbing):
 	// member definition, necessary for the cr3bp class
 	IC(ic),
@@ -103,12 +103,9 @@ NBODY::NBODY(state_type &ic, string str_epoch, const double m, const double l,
 		throw std::length_error("IC is not length 6 or 42");
 	} else if (n_IC == 6){prop_STM = false;}
 	else {prop_STM = true;}
-	
-	SpiceDouble base_epoch;
-	base_epoch = str2et(str_epoch);
-
-	// non-dimensionalize the epoch
-	base_epoch_nd = base_epoch/sys.t_star;
+    
+    // non-dimensionalize the epoch
+	base_epoch_nd = epoch.et_epoch/sys.t_star;
 
 	// make sure kernels are loaded
 	load_kernels(); 
@@ -310,7 +307,7 @@ class PYNBODY{
 	// Class that is interfaced with by Python
 	public:
 	// Constructor
-	PYNBODY(state_type &IC, string str_epoch, const double m, const double l, double TOF){
+	PYNBODY(state_type &IC, SpiceEpoch epoch, const double m, const double l, double TOF){
 		double G;
 		G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2	
 		// Define bodies
@@ -320,7 +317,7 @@ class PYNBODY{
 		SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
 
 		// Initialize our N-body system
-		NBODY nbody_sys(IC, str_epoch, m, l, Earth, {Moon, Sun, Jupiter});
+		NBODY nbody_sys(IC, epoch, m, l, Earth, {Moon, Sun, Jupiter});
 		
 		// Create observer class
 		PropObserver observer{}; 
@@ -359,8 +356,12 @@ PYBIND11_MODULE(casper, m) {
 //	    .def_readonly("t", &PropObserver::t)
 //	    .def_readonly("x", &PropObserver::x);
 
+    py::class_<SpiceEpoch>(m, "SpiceEpoch")
+        .def(py::init<SpiceDouble>())
+        .def(py::init<string>());
+
     py::class_<PYNBODY>(m, "PyNbody")
-	    .def(py::init<state_type &, string, const double, const double, double>())
+	    .def(py::init<state_type &, SpiceEpoch, const double, const double, double>())
 	    .def_readonly("x_states", &PYNBODY::x_states)
 	    .def_readonly("t_states", &PYNBODY::t_states);
 
@@ -388,7 +389,9 @@ int main(){
           //0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
-	NBODY nbody_system(IC_vector, "May 2, 2022", m_star, l_star, Earth, {Moon});
+    SpiceEpoch epoch(1234567);
+    cout<<epoch.utc_epoch<<endl;
+	NBODY nbody_system(IC_vector, epoch, m_star, l_star, Earth, {Moon});
 	cout <<"Length of IC: "<< nbody_system.n_IC << endl;
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};
