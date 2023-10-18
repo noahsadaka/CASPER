@@ -79,7 +79,11 @@ class NBODY{
 		// Perturbing acceleration computation function declaration
 		void get_perturbing_acceleration(const double t, SpiceBody pert_body,
 				int central_body_ID, cr3bp_system sys, const state_type &state,
-				state_type &acc, state_type &A_subset);
+				state_type &acc, state_type &A_subset, state_type &sum_term);
+
+        // partial of states wrt epoch summation term computation (eq 4.11 in ATD mathspec)
+        void states_wrt_epoch_summation(state_type r_s_i, state_type r_c_i,
+                const double body_mass, state_type &sum_term);
 
 		// A matrix creation function declaration
 		std::vector<double> build_A_matrix(state_type &A_sub);
@@ -98,9 +102,9 @@ NBODY::NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
 	central_body(central),
 	perturbing_bodies(perturbing)
 	{// actual function here
-	// Check that len(IC) = 6 or 42
-	if (n_IC != 6 && n_IC != 42){
-		throw std::length_error("IC is not length 6 or 42");
+	// Check that len(IC) = 6 or 48
+	if (n_IC != 6 && n_IC != 48){
+		throw std::length_error("IC is not length 6 or 48");
 	} else if (n_IC == 6){prop_STM = false;}
 	else {prop_STM = true;}
     
@@ -113,8 +117,9 @@ NBODY::NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
 
 // EOMs with STM propagation
 void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
-	state_type acc(3,0);
-  	state_type A_subset (9,0);
+	state_type acc(3, 0);
+  	state_type A_subset (9, 0);
+    state_type epoch_partial_sum_term (3, 0);
 	
 	// get acceleration and A matrix contribution from central body
 	get_primary_acceleration(state, acc, A_subset);	
@@ -123,7 +128,7 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 	for (int i = 0; i < perturbing_bodies.size(); i++)
 	{
 		get_perturbing_acceleration(t, perturbing_bodies[i], central_body.ID, sys, state,
-				acc, A_subset);
+				acc, A_subset, epoch_partial_sum_term);
 	}
 
 
@@ -139,8 +144,8 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 		// Create the 6x6 A matrix from the 3x3 subset 
 		state_type A;
 		A = build_A_matrix(A_subset);
-	
 		// Do the phi_dot = A * phi computation. Took this from Nick and RJ, thanks Nick and RJ!
+        // also do the epoch partial A*dq_dt computation in the same loop
 		int state_size = 6;
 		for (int i = 0; i < state_size; i++) {
         	for (int j = 0; j < state_size; j++) {
@@ -150,9 +155,11 @@ void NBODY::EOM_STM(state_type &state, state_type &d_state, const double t){
 	
         	    for (int k = 0; k < state_size; k++) {
                     d_state[current_index] += A[i * state_size + k] * state[state_size + state_size * k + j];
+                    d_state[current_index + 6] += A[i * state_size + k] * state[state_size + state_size * k + j + 6];
                     }
                 }
             }
+
         }
     };
 
@@ -197,23 +204,26 @@ void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, s
 // Perturbing acceleration
 void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	int central_body_ID, cr3bp_system sys, const state_type &state,
-	state_type &acc, state_type &A_subset){
+	state_type &acc, state_type &A_subset, state_type &sum_term){
 	
 	// variables
 	const double G ((6.67430e-11/pow(1000,3)));
 	const double mass (pert_body.mu/G/sys.m_star);
 	const double t_star (sys.t_star);
-	SpiceDouble body_position [3], lighttimes;
+	SpiceDouble body_pos_vel [6], lighttimes;
 	SpiceDouble epoch_dim (t*t_star);
 	
 	// get position of perturbing body WRT central body	
-	spkpos_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE",
-		 to_string(central_body_ID).c_str(), body_position, &lighttimes);
+	spkezr_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE",
+		 to_string(central_body_ID).c_str(), body_pos_vel, &lighttimes);
 
 	// non dimensionalize planet position
-	body_position[0] = body_position[0]/sys.l_star;
-	body_position[1] = body_position[1]/sys.l_star;
-	body_position[2] = body_position[2]/sys.l_star;
+	body_pos_vel[0] = body_pos_vel[0]/sys.l_star;
+	body_pos_vel[1] = body_pos_vel[1]/sys.l_star;
+	body_pos_vel[2] = body_pos_vel[2]/sys.l_star;
+    body_pos_vel[3] = body_pos_vel[3]/sys.l_star * sys.t_star;
+    body_pos_vel[4] = body_pos_vel[4]/sys.l_star * sys.t_star;
+    body_pos_vel[5] = body_pos_vel[5]/sys.l_star * sys.t_star;
 	
 	state_type r_sc_body, r_body_obs;
 	double r_sc_b_n, r_sc_b_n_3, r_sc_b_n_5, x, y, z;
@@ -221,10 +231,10 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	double r_b_o_n, r_b_o_n_3;
 	
 	// Vector pointing from perturbing body to spacecraft
-	r_sc_body = {state[0] - body_position[0], state[1] - body_position[1], state[2] - body_position[2]};
+	r_sc_body = {state[0] - body_pos_vel[0], state[1] - body_pos_vel[1], state[2] - body_pos_vel[2]};
 
 	// Vector pointing from central body to perturbing body
-	r_body_obs = {-1 * body_position[0],-1 * body_position[1], -1 * body_position[2]};
+	r_body_obs = {-1 * body_pos_vel[0],-1 * body_pos_vel[1], -1 * body_pos_vel[2]};
 
 	// norm of spacecraft to central body vector
 	r_sc_b_n = sqrt(pow(r_sc_body[0],2) + pow(r_sc_body[1],2)+ pow(r_sc_body[2],2));
@@ -261,7 +271,53 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 		A_subset[6] += mass * 3 * x * z /r_sc_b_n_5;
 		A_subset[7] += mass * (3 * y * z / r_sc_b_n_5);
 		A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+
+    // epoch summation contribution
+    state_type body_state = {body_pos_vel[0], body_pos_vel[1], body_pos_vel[2], body_pos_vel[3], body_pos_vel[4], body_pos_vel[5]};
+    states_wrt_epoch_summation(state, body_state, mass, sum_term);
 	}
+};
+
+void NBODY::states_wrt_epoch_summation(state_type r_s_i, state_type r_c_i,
+                                       const double mass, state_type &sum_term){
+
+    // Initialize matrix of partials del dq / del r_ci
+    std::vector<double> partial_matrix(18, 0);
+    double r_si_3, r_si_5, r_ci_3, r_ci_5;
+
+    // create variables for terms that are used frequently
+    r_si_3 = pow(r_s_i[0] * r_s_i[0] + r_s_i[1] * r_s_i[1] + r_s_i[2] * r_s_i[2], 3/2);
+    r_si_5 = pow(r_s_i[0] * r_s_i[0] + r_s_i[1] * r_s_i[1] + r_s_i[2] * r_s_i[2], 5/2);
+    r_ci_3 = pow(r_c_i[0] * r_c_i[0] + r_c_i[1] * r_c_i[1] + r_c_i[2] * r_c_i[2], 3/2);
+    r_ci_5 = pow(r_c_i[0] * r_c_i[0] + r_c_i[1] * r_c_i[1] + r_c_i[2] * r_c_i[2], 5/2);
+
+
+    // fill in the matrix
+    partial_matrix[9] = mass * (1 / r_si_3 - 3 * pow(r_s_i[0], 2) / r_si_5 - 1 / r_ci_3 + 3 * pow(r_c_i[0], 2) / r_ci_5);
+    partial_matrix[10] = 3 * mass * (r_c_i[0] * r_c_i[1] / r_ci_5 - r_s_i[0] * r_s_i[1] / r_si_5);
+    partial_matrix[11] = 3 * mass * (r_c_i[0] * r_c_i[2] / r_ci_5 - r_s_i[0] * r_s_i[2] / r_si_5);
+    partial_matrix[12] = 3 * mass * (r_c_i[0] * r_c_i[1] / r_ci_5 - r_s_i[0] * r_s_i[1] / r_si_5);
+    partial_matrix[13] = mass * (1 / r_si_3 - 3 * pow(r_s_i[1], 2) / r_si_5 - 1 / r_ci_3 + 3 * pow(r_c_i[1], 2) / r_ci_5);
+    partial_matrix[14] = 3 * mass * (r_c_i[1] * r_c_i[2] / r_ci_5 - r_s_i[1] * r_s_i[2] / r_si_5);
+    partial_matrix[15] = 3 * mass * (r_c_i[0] * r_c_i[2] / r_ci_5 - r_s_i[0] * r_s_i[2] / r_si_5);
+    partial_matrix[16] = 3 * mass * (r_c_i[1] * r_c_i[2] / r_ci_5 - r_s_i[1] * r_s_i[2] / r_si_5);
+    partial_matrix[17] = mass * (1 / r_si_3 - 3 * pow(r_s_i[2], 2) / r_si_5 - 1 / r_ci_3 + 3 * pow(r_c_i[2], 2) / r_ci_5);
+
+    std::vector<double> sum_temp(6,0);
+
+    // partial matrix * v_ci
+    
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 3; j++) {
+            sum_temp[i] += partial_matrix[j, i] * r_c_i[3 + j];
+        }
+    }
+    sum_term[0] += sum_temp[0];
+    sum_term[1] += sum_temp[1];
+    sum_term[2] += sum_temp[2];
+    sum_term[3] += sum_temp[3];
+    sum_term[4] += sum_temp[4];
+    sum_term[5] += sum_temp[5];
 };
 
 std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
@@ -379,14 +435,15 @@ int main(){
 	SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
 	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
-	// Define 42-state vector. Taken from RJ and Nick's CR3BP code
+	// Define 48-state vector. Taken from RJ and Nick's CR3BP code
 	state_type IC_vector {1.05903, -0.067492, -0.103524, -0.170109, 0.0960234, -0.135279};//,
           //1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           //0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
           //0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
           //0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
           //0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-          //0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+          //0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+          //0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
     SpiceEpoch epoch(1234567);
