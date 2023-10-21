@@ -284,10 +284,10 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
     double RJS_3_inv, RJS_5_inv, RIJ_3_inv, RIJ_5_inv;
 
     // create variables for terms that are used frequently
-    RJS_3_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -3/2);
-    RJS_5_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -5/2);
-    RIJ_3_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -3/2);
-    RIJ_5_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -5/2);
+    RJS_3_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -3.0/2.0);
+    RJS_5_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -5.0/2.0);
+    RIJ_3_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -3.0/2.0);
+    RIJ_5_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -5.0/2.0);
 
     // fill in the partial matrix PM.
     PM[0] = -1 * mass * (-1 * RJS_3_inv + 3 * RJS[0] * RJS[0] * RJS_5_inv + RIJ_3_inv - 3 * RIJ[0] * RIJ[0] * RIJ_5_inv);
@@ -299,7 +299,6 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
     PM[6] = PM[2];
     PM[7] = PM[5];
     PM[8] = -1 * mass * (-1 * RJS_3_inv + 3 * RJS[2] * RJS[2] * RJS_5_inv + RIJ_3_inv - 3 * RIJ[2] * RIJ[2] * RIJ_5_inv);
-
     std::vector<double> sum_temp(6,0);
 
     // partial matrix * v_ci in elementwise calculation
