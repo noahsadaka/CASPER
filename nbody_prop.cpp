@@ -168,34 +168,34 @@ void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, s
 	const double mass (central_body.mu/G/sys.m_star);
 	
 	// extract only position components of state
-	state_type r_sc_b {state[0], state[1], state[2]};
+	state_type RIS {state[0], state[1], state[2]};
 
-	const double r_sc_b_n = sqrt(r_sc_b[0]*r_sc_b[0] + r_sc_b[1]*r_sc_b[1] + r_sc_b[2]*r_sc_b[2]);
-	const double r_sc_b_n_5 = pow(r_sc_b_n, 5);
-	const double r_sc_b_n_3 = pow(r_sc_b_n, 3);
+	const double RIS_n = sqrt(RIS[0]*RIS[0] + RIS[1]*RIS[1] + RIS[2]*RIS[2]);
+	const double RIS_n_5 = pow(RIS_n, 5);
+	const double RIS_n_3 = pow(RIS_n, 3);
 	
 	// makes it easier to write and read
 	double x, y, z;
-	x = r_sc_b[0];
-	y = r_sc_b[1];
-	z = r_sc_b[2];
+	x = RIS[0];
+	y = RIS[1];
+	z = RIS[2];
 	
 	// acceleration terms
-	acc[0] -= mass * x / r_sc_b_n_3;
-	acc[1] -= mass * y / r_sc_b_n_3;
-	acc[2] -= mass * z / r_sc_b_n_3;
+	acc[0] -= mass * x / RIS_n_3;
+	acc[1] -= mass * y / RIS_n_3;
+	acc[2] -= mass * z / RIS_n_3;
 	
 	if (prop_STM){	
 		// STM terms
-		A_subset[0] += mass * (3 * pow(x, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-		A_subset[1] += mass * 3 * x * y / r_sc_b_n_5;
-		A_subset[2] += mass * 3 * x * z / r_sc_b_n_5;
-		A_subset[3] += mass * 3 * x * y / r_sc_b_n_5;
-		A_subset[4] += mass * (3 * pow(y, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
-		A_subset[5] += mass * 3 * y * z / r_sc_b_n_5;
-		A_subset[6] += mass * 3 * x * z / r_sc_b_n_5;
-		A_subset[7] += mass * 3 * y * z / r_sc_b_n_5;
-		A_subset[8] += mass * (3 * pow(z, 2) / r_sc_b_n_5 - 1 / r_sc_b_n_3);
+		A_subset[0] += mass * (3 * pow(x, 2) / RIS_n_5 - 1 / RIS_n_3);
+		A_subset[1] += mass * 3 * x * y / RIS_n_5;
+		A_subset[2] += mass * 3 * x * z / RIS_n_5;
+		A_subset[3] += mass * 3 * x * y / RIS_n_5;
+		A_subset[4] += mass * (3 * pow(y, 2) / RIS_n_5 - 1 / RIS_n_3);
+		A_subset[5] += mass * 3 * y * z / RIS_n_5;
+		A_subset[6] += mass * 3 * x * z / RIS_n_5;
+		A_subset[7] += mass * 3 * y * z / RIS_n_5;
+		A_subset[8] += mass * (3 * pow(z, 2) / RIS_n_5 - 1 / RIS_n_3);
 	}
 };
 
@@ -212,67 +212,62 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	const double t_star (sys.t_star);
 	SpiceDouble r_i_j [6], lighttimes;
 	SpiceDouble epoch_dim (t*t_star);
+    state_type RIJ(6, 0);
 	
 	// get position of perturbing body WRT central body	
 	spkezr_c(to_string(pert_body.ID).c_str(), epoch_dim, "J2000", "NONE",
 		 to_string(central_body_ID).c_str(), r_i_j, &lighttimes);
 
 	// non dimensionalize planet position
-	r_i_j[0] = r_i_j[0]/sys.l_star;
-	r_i_j[1] = r_i_j[1]/sys.l_star;
-	r_i_j[2] = r_i_j[2]/sys.l_star;
-    r_i_j[3] = r_i_j[3]/sys.l_star * sys.t_star;
-    r_i_j[4] = r_i_j[4]/sys.l_star * sys.t_star;
-    r_i_j[5] = r_i_j[5]/sys.l_star * sys.t_star;
+	RIJ[0] = r_i_j[0]/sys.l_star;
+	RIJ[1] = r_i_j[1]/sys.l_star;
+	RIJ[2] = r_i_j[2]/sys.l_star;
+    RIJ[3] = r_i_j[3]/sys.l_star * sys.t_star;
+    RIJ[4] = r_i_j[4]/sys.l_star * sys.t_star;
+    RIJ[5] = r_i_j[5]/sys.l_star * sys.t_star;
 	
-	state_type r_j_s;
-	double r_j_s_n, r_j_s_n_3, r_j_s_n_5, x, y, z;
+	state_type RJS;
+	double RJS_n, RJS_n_3, RJS_n_5, x, y, z;
 	double x_o, y_o, z_o;
-	double r_i_j_n, r_i_j_n_3;
+	double RIJ_n, RIJ_n_3;
 	
 	// Vector pointing from perturbing body to spacecraft
-	r_j_s = {state[0] - r_i_j[0], state[1] - r_i_j[1], state[2] - r_i_j[2]};
-
+	RJS = {state[0] - RIJ[0], state[1] - RIJ[1], state[2] - RIJ[2]};
 
 	// norm of spacecraft to central body vector
-	r_j_s_n = sqrt(pow(r_j_s[0], 2) + pow(r_j_s[1], 2)+ pow(r_j_s[2], 2));
-	r_j_s_n_3 = pow(r_j_s_n, 3);
-	r_j_s_n_5 = pow(r_j_s_n, 5);
+    // _n on name means norm, _n_X means norm to the power of X
+	RJS_n = sqrt(pow(RJS[0], 2) + pow(RJS[1], 2)+ pow(RJS[2], 2));
+	RJS_n_3 = pow(RJS_n, 3);
+	RJS_n_5 = pow(RJS_n, 5);
 
 	// norm of perturbing to central body vector
-	r_i_j_n = sqrt(pow(r_i_j[0], 2) + pow(r_i_j[1], 2)+ pow(r_i_j[2], 2));
-	r_i_j_n_3 = pow(r_i_j_n,3);
+	RIJ_n = sqrt(pow(RIJ[0], 2) + pow(RIJ[1], 2)+ pow(RIJ[2], 2));
+	RIJ_n_3 = pow(RIJ_n,3);
 
-	// states of r_j_s vector
-	x = r_j_s[0];
-	y = r_j_s[1];
-	z = r_j_s[2];
-
-	// states of r_i_j vector
-	x_o = r_i_j[0];
-	y_o = r_i_j[1];
-	z_o = r_i_j[2];
+	// states of RJS vector
+	x = RJS[0];
+	y = RJS[1];
+	z = RJS[2];
 
 	// add perturbing accelerations to acceleration vector
-	acc[0] -= mass * (x / r_j_s_n_3 + x_o / r_i_j_n_3);
-	acc[1] -= mass * (y / r_j_s_n_3 + y_o / r_i_j_n_3);
-	acc[2] -= mass * (z / r_j_s_n_3 + z_o / r_i_j_n_3);
+	acc[0] -= mass * (x / RJS_n_3 + RIJ[0] / RIJ_n_3);
+	acc[1] -= mass * (y / RJS_n_3 + RIJ[1] / RIJ_n_3);
+	acc[2] -= mass * (z / RJS_n_3 + RIJ[2] / RIJ_n_3);
 	
 	if (prop_STM){
 	// Add perturbing contributions to A matrix
-		A_subset[0] += mass * (3 * pow(x, 2) / r_j_s_n_5 - 1 / r_j_s_n_3);
-		A_subset[1] += mass * 3 * x * y / r_j_s_n_5;
-		A_subset[2] += mass * 3 * x * z /r_j_s_n_5;
-		A_subset[3] += mass * 3 * x * y / r_j_s_n_5;
-		A_subset[4] += mass * (3 * pow(y, 2) / r_j_s_n_5 - 1 / r_j_s_n_3);
-		A_subset[5] += mass * (3 * y * z / r_j_s_n_5);
-		A_subset[6] += mass * 3 * x * z /r_j_s_n_5;
-		A_subset[7] += mass * (3 * y * z / r_j_s_n_5);
-		A_subset[8] += mass * (3 * pow(z, 2) / r_j_s_n_5 - 1 / r_j_s_n_3);
+		A_subset[0] += mass * (3 * pow(x, 2) / RJS_n_5 - 1 / RJS_n_3);
+		A_subset[1] += mass * 3 * x * y / RJS_n_5;
+		A_subset[2] += mass * 3 * x * z /RJS_n_5;
+		A_subset[3] += mass * 3 * x * y / RJS_n_5;
+		A_subset[4] += mass * (3 * pow(y, 2) / RJS_n_5 - 1 / RJS_n_3);
+		A_subset[5] += mass * (3 * y * z / RJS_n_5);
+		A_subset[6] += mass * 3 * x * z /RJS_n_5;
+		A_subset[7] += mass * (3 * y * z / RJS_n_5);
+		A_subset[8] += mass * (3 * pow(z, 2) / RJS_n_5 - 1 / RJS_n_3);
 
     // epoch summation contribution
-    state_type RIJ = {r_i_j[0], r_i_j[1], r_i_j[2], r_i_j[3], r_i_j[4], r_i_j[5]};
-    states_wrt_epoch_summation(r_j_s, RIJ, mass, sum_term);
+    states_wrt_epoch_summation(RJS, RIJ, mass, sum_term);
 	}
 };
 
@@ -301,7 +296,7 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
     PM[8] = -1 * mass * (-1 * RJS_3_inv + 3 * RJS[2] * RJS[2] * RJS_5_inv + RIJ_3_inv - 3 * RIJ[2] * RIJ[2] * RIJ_5_inv);
     std::vector<double> sum_temp(6,0);
 
-    // partial matrix * v_ci in elementwise calculation
+    // partial matrix * v_ci as elementwise calculation
     sum_temp[3] = RIJ[3] * PM[0] + RIJ[4] * PM[1] + RIJ[5] * PM[2];
     sum_temp[4] = RIJ[3] * PM[3] + RIJ[4] * PM[4] + RIJ[5] * PM[5];
     sum_temp[5] = RIJ[3] * PM[6] + RIJ[4] * PM[7] + RIJ[5] * PM[8];
