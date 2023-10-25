@@ -426,13 +426,13 @@ int main(){
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
 	// Define 48-state vector. Arbitrary Lyapunov initial state
 	state_type IC_vector {0.18889952, -0.86798499, -0.34129653,  0.48008814,  0.11764799,  0.00512411,
-          1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // initialize STM with
           0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-          0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // and initialize epoch partial
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
     SpiceEpoch epoch("March 1, 2000, 00:00:00.0000");
