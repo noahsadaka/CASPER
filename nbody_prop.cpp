@@ -187,15 +187,15 @@ void NBODY::get_primary_acceleration(const state_type &state, state_type &acc, s
 	
 	if (prop_STM){	
 		// STM terms
-		A_subset[0] += mass * (3 * pow(x, 2) / RIS_n_5 - 1 / RIS_n_3);
+		A_subset[0] += mass * (3 * x * x / RIS_n_5 - 1 / RIS_n_3);
 		A_subset[1] += mass * 3 * x * y / RIS_n_5;
 		A_subset[2] += mass * 3 * x * z / RIS_n_5;
 		A_subset[3] += mass * 3 * x * y / RIS_n_5;
-		A_subset[4] += mass * (3 * pow(y, 2) / RIS_n_5 - 1 / RIS_n_3);
+		A_subset[4] += mass * (3 * y * y / RIS_n_5 - 1 / RIS_n_3);
 		A_subset[5] += mass * 3 * y * z / RIS_n_5;
 		A_subset[6] += mass * 3 * x * z / RIS_n_5;
 		A_subset[7] += mass * 3 * y * z / RIS_n_5;
-		A_subset[8] += mass * (3 * pow(z, 2) / RIS_n_5 - 1 / RIS_n_3);
+		A_subset[8] += mass * (3 * z * z / RIS_n_5 - 1 / RIS_n_3);
 	}
 };
 
@@ -236,12 +236,12 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 
 	// norm of spacecraft to central body vector
     // _n on name means norm, _n_X means norm to the power of X
-	RJS_n = sqrt(pow(RJS[0], 2) + pow(RJS[1], 2)+ pow(RJS[2], 2));
+	RJS_n = sqrt(RJS[0] * RJS[0] + RJS[1] * RJS[1] + RJS[2] * RJS[2]);
 	RJS_n_3 = pow(RJS_n, 3);
 	RJS_n_5 = pow(RJS_n, 5);
 
 	// norm of perturbing to central body vector
-	RIJ_n = sqrt(pow(RIJ[0], 2) + pow(RIJ[1], 2)+ pow(RIJ[2], 2));
+	RIJ_n = sqrt(RIJ[0] * RIJ[0] + RIJ[1] * RIJ[1] + RIJ[2] * RIJ[2]);
 	RIJ_n_3 = pow(RIJ_n,3);
 
 	// states of RJS vector
@@ -256,15 +256,15 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	
 	if (prop_STM){
 	// Add perturbing contributions to A matrix
-		A_subset[0] += mass * (3 * pow(x, 2) / RJS_n_5 - 1 / RJS_n_3);
+		A_subset[0] += mass * (3 * x * x / RJS_n_5 - 1 / RJS_n_3);
 		A_subset[1] += mass * 3 * x * y / RJS_n_5;
 		A_subset[2] += mass * 3 * x * z /RJS_n_5;
 		A_subset[3] += mass * 3 * x * y / RJS_n_5;
-		A_subset[4] += mass * (3 * pow(y, 2) / RJS_n_5 - 1 / RJS_n_3);
+		A_subset[4] += mass * (3 * y * y / RJS_n_5 - 1 / RJS_n_3);
 		A_subset[5] += mass * (3 * y * z / RJS_n_5);
 		A_subset[6] += mass * 3 * x * z /RJS_n_5;
 		A_subset[7] += mass * (3 * y * z / RJS_n_5);
-		A_subset[8] += mass * (3 * pow(z, 2) / RJS_n_5 - 1 / RJS_n_3);
+		A_subset[8] += mass * (3 * z * z / RJS_n_5 - 1 / RJS_n_3);
 
     // epoch summation contribution
     states_wrt_epoch_summation(RJS, RIJ, mass, sum_term);
