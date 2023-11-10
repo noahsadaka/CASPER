@@ -90,7 +90,7 @@ class NBODY{
 		std::vector<double> build_A_matrix(state_type &A_sub);
 
 		// propagator function
-		void propagate(double TOF, double step_size, double rt, double at, PropObserver &o);
+		void propagate(double TOF, double step_size, double rt, double at, PropObserver &o, std::vector<double> times);
 };
 
 // Define NBODY class Constructor
@@ -211,7 +211,7 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	const double mass (pert_body.mu/G/sys.m_star);
 	const double t_star (sys.t_star);
 	SpiceDouble r_i_j [6], lighttimes;
-	SpiceDouble epoch_dim (t*t_star);
+	SpiceDouble epoch_dim (t * t_star);
     state_type RIJ(6, 0);
 	
 	// get position of perturbing body WRT central body	
@@ -219,12 +219,12 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 		 to_string(central_body_ID).c_str(), r_i_j, &lighttimes);
 
 	// non dimensionalize planet position
-	RIJ[0] = r_i_j[0]/sys.l_star;
-	RIJ[1] = r_i_j[1]/sys.l_star;
-	RIJ[2] = r_i_j[2]/sys.l_star;
-    RIJ[3] = r_i_j[3]/sys.l_star * sys.t_star;
-    RIJ[4] = r_i_j[4]/sys.l_star * sys.t_star;
-    RIJ[5] = r_i_j[5]/sys.l_star * sys.t_star;
+	RIJ[0] = r_i_j[0] / sys.l_star;
+	RIJ[1] = r_i_j[1] / sys.l_star;
+	RIJ[2] = r_i_j[2] / sys.l_star;
+    RIJ[3] = r_i_j[3] / sys.l_star * sys.t_star;
+    RIJ[4] = r_i_j[4] / sys.l_star * sys.t_star;
+    RIJ[5] = r_i_j[5] / sys.l_star * sys.t_star;
 	
 	state_type RJS;
 	double RJS_n, RJS_n_3, RJS_n_5, x, y, z;
@@ -242,7 +242,7 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 
 	// norm of perturbing to central body vector
 	RIJ_n = sqrt(RIJ[0] * RIJ[0] + RIJ[1] * RIJ[1] + RIJ[2] * RIJ[2]);
-	RIJ_n_3 = pow(RIJ_n,3);
+	RIJ_n_3 = pow(RIJ_n, 3);
 
 	// states of RJS vector
 	x = RJS[0];
@@ -258,11 +258,11 @@ void NBODY::get_perturbing_acceleration(const double t, SpiceBody pert_body,
 	// Add perturbing contributions to A matrix
 		A_subset[0] += mass * (3 * x * x / RJS_n_5 - 1 / RJS_n_3);
 		A_subset[1] += mass * 3 * x * y / RJS_n_5;
-		A_subset[2] += mass * 3 * x * z /RJS_n_5;
+		A_subset[2] += mass * 3 * x * z / RJS_n_5;
 		A_subset[3] += mass * 3 * x * y / RJS_n_5;
 		A_subset[4] += mass * (3 * y * y / RJS_n_5 - 1 / RJS_n_3);
 		A_subset[5] += mass * (3 * y * z / RJS_n_5);
-		A_subset[6] += mass * 3 * x * z /RJS_n_5;
+		A_subset[6] += mass * 3 * x * z / RJS_n_5;
 		A_subset[7] += mass * (3 * y * z / RJS_n_5);
 		A_subset[8] += mass * (3 * z * z / RJS_n_5 - 1 / RJS_n_3);
 
@@ -279,10 +279,10 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
     double RJS_3_inv, RJS_5_inv, RIJ_3_inv, RIJ_5_inv;
 
     // create variables for terms that are used frequently
-    RJS_3_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -3.0/2.0);
-    RJS_5_inv = pow(RJS[0]*RJS[0]+ RJS[1]*RJS[1]+ RJS[2]*RJS[2], -5.0/2.0);
-    RIJ_3_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -3.0/2.0);
-    RIJ_5_inv = pow(RIJ[0]*RIJ[0]+ RIJ[1]*RIJ[1]+ RIJ[2]*RIJ[2], -5.0/2.0);
+    RJS_3_inv = pow(RJS[0] * RJS[0] + RJS[1] * RJS[1] + RJS[2] * RJS[2], -3.0 / 2.0);
+    RJS_5_inv = pow(RJS[0] * RJS[0] + RJS[1] * RJS[1] + RJS[2] * RJS[2], -5.0 / 2.0);
+    RIJ_3_inv = pow(RIJ[0] * RIJ[0] + RIJ[1] * RIJ[1] + RIJ[2] * RIJ[2], -3.0 / 2.0);
+    RIJ_5_inv = pow(RIJ[0] * RIJ[0] + RIJ[1] * RIJ[1] + RIJ[2] * RIJ[2], -5.0 / 2.0);
 
     // fill in the partial matrix PM.
     PM[0] = -1 * mass * (-1 * RJS_3_inv + 3 * RJS[0] * RJS[0] * RJS_5_inv + RIJ_3_inv - 3 * RIJ[0] * RIJ[0] * RIJ_5_inv);
@@ -294,7 +294,7 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
     PM[6] = PM[2];
     PM[7] = PM[5];
     PM[8] = -1 * mass * (-1 * RJS_3_inv + 3 * RJS[2] * RJS[2] * RJS_5_inv + RIJ_3_inv - 3 * RIJ[2] * RIJ[2] * RIJ_5_inv);
-    std::vector<double> sum_temp(6,0);
+    std::vector<double> sum_temp(6, 0);
 
     // partial matrix * v_ci as elementwise calculation
     sum_temp[3] = RIJ[3] * PM[0] + RIJ[4] * PM[1] + RIJ[5] * PM[2];
@@ -310,7 +310,7 @@ void NBODY::states_wrt_epoch_summation(state_type RJS, state_type RIJ,
 };
 
 std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
-	std::vector<double> A(36,0);
+	std::vector<double> A(36, 0);
 	// Zero matrix block
 	A[3] = 1;
 	A[10] = 1;
@@ -329,7 +329,7 @@ std::vector<double> NBODY::build_A_matrix(state_type &A_sub){
 	return A;
 };
 
-void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver &o){
+void NBODY::propagate(double t_end, double step_size, double rtol, double atol, PropObserver &o, std::vector<double> times){
 	namespace pl = std::placeholders;
 	state_type states_and_times;
 	
@@ -344,15 +344,23 @@ void NBODY::propagate(double t_end, double step_size, double rtol, double atol, 
 
 	// Integrate the EOMs, capture steps with observer function o
 	size_t steps;
+
+    if ( times.size() > 0 ) {
+     	steps = integrate_times(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3),
+		       IC, times.begin(), times.end(), step_size, std::ref(o));
+    }
+    else{
+
 	steps = integrate_adaptive(stepper, std::bind(&NBODY::EOM_STM, *this, pl::_1, pl::_2, pl::_3),
 		       IC, base_epoch_nd, t_end, step_size, std::ref(o));
+    }
 };
 
 class PYNBODY{
 	// Class that is interfaced with by Python
 	public:
 	// Constructor
-	PYNBODY(state_type &IC, SpiceEpoch epoch, const double m, const double l, double TOF){
+	PYNBODY(state_type &IC, SpiceEpoch epoch, const double m, const double l, double TOF, std::vector<double> t_eval){
 		double G;
 		G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2	
 		// Define bodies
@@ -368,7 +376,7 @@ class PYNBODY{
 		PropObserver observer{}; 
 
 		// Run the propagator
-		nbody_sys.propagate(nbody_sys.base_epoch_nd + TOF, 1e-3, 1e-12, 1e-12, observer);
+		nbody_sys.propagate(nbody_sys.base_epoch_nd + TOF, 1e-3, 1e-12, 1e-12, observer, t_eval);
 
 		// Save states and times to class attributes
 		x_states = observer.x;
@@ -406,7 +414,7 @@ PYBIND11_MODULE(casper, m) {
         .def(py::init<string>());
 
     py::class_<PYNBODY>(m, "PyNbody")
-	    .def(py::init<state_type &, SpiceEpoch, const double, const double, double>())
+	    .def(py::init<state_type &, SpiceEpoch, const double, const double, double, std::vector<double>>())
 	    .def_readonly("x_states", &PYNBODY::x_states)
 	    .def_readonly("t_states", &PYNBODY::t_states);
 
@@ -435,12 +443,13 @@ int main(){
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // and initialize epoch partial
 	const double m_star ((Earth.mu+Moon.mu)/G);
 	const double l_star (3.8474799197904585e+05);
+    std::vector<double> times;
     SpiceEpoch epoch("March 1, 2000, 00:00:00.0000");
     cout<<epoch.utc_epoch<<endl;
 	NBODY nbody_system(IC_vector, epoch, m_star, l_star, Earth, {Moon});
 	cout <<"Length of IC: "<< nbody_system.n_IC << endl;
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};
-	nbody_system.propagate(nbody_system.base_epoch_nd + 5, 1e-3, 1e-12, 1e-12, obs);
+	nbody_system.propagate(nbody_system.base_epoch_nd + 5, 1e-3, 1e-12, 1e-12, obs, times);
 };
 #endif
