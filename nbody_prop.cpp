@@ -11,6 +11,7 @@
 // User-created headers
 #include "SpiceClasses.h"
 #include "ephem_utils.h"
+#include "NBodyModel.h"
 
 //Pybind and Boost
 #ifdef PYTHON_COMPILE
@@ -41,35 +42,26 @@ class PropObserver{
 };
 
 
-class cr3bp_system{
-	public:
-		double m_star;
-		double l_star;
-		double t_star;
-	cr3bp_system(const double m, const double l){
-		const double G ((6.67430e-11/pow(1000,3)));
-		m_star = m;
-		l_star = l;
-		t_star = 1/pow(m*G/pow(l,3), 0.5);
-	};
-};
-
 class NBODY{
+    /*
+     A Class for defining an initial state in an N-body gravitational 
+     point-mass model and propagating it
+     * */
 	public:
 		
 		// Attributes
-		state_type IC; // initial condition, 42-vector, non-dim
-		const unsigned int n_IC; // number of states, should be 6 or 42
+		state_type IC; // initial condition, 6 or 48-vector, non-dim
+		const unsigned int n_IC; // number of states, must be 6 or 48
 		bool prop_STM;
 		SpiceDouble base_epoch_nd; // base epoch, in non-dim seconds ephemeris time
+        NBodyModel nbd_model;
 		cr3bp_system sys; // CR3BP object used for non-dimensionalization
 		SpiceBody central_body; // Body at center of inertial J2000 frame
 		std::vector<SpiceBody> perturbing_bodies; // Perturbing bodies
-        const double G = (6.67430e-11/pow(1000,3));
+        const double G = (6.67430e-11/1e9); // G converted to km3/kg/s2
 		
 		// Constructor Declaration
-		NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
-			SpiceBody central, std::vector<SpiceBody> perturbing);
+		NBODY(state_type &ic, SpiceEpoch epoch, NBodyModel nbd);
 
 		// EOM function declaration
 		void EOM_STM(state_type &x, state_type &dx, const double t);
@@ -94,14 +86,14 @@ class NBODY{
 };
 
 // Define NBODY class Constructor
-NBODY::NBODY(state_type &ic, SpiceEpoch epoch, const double m, const double l,
-	SpiceBody central, std::vector<SpiceBody> perturbing):
+NBODY::NBODY(state_type &ic, SpiceEpoch epoch, NBodyModel nbd):
 	// member definition, necessary for the cr3bp class
 	IC(ic),
-	sys(m, l),
+	sys(nbd.sys),
 	n_IC(IC.size()),
-	central_body(central),
-	perturbing_bodies(perturbing)
+    nbd_model(nbd),
+	central_body(nbd.central_body),
+	perturbing_bodies(nbd.perturbing_bodies)
 	{// actual function here
 	// Check that len(IC) = 6 or 48
 	if (n_IC != 6 && n_IC != 48){
@@ -360,17 +352,9 @@ class PYNBODY{
 	// Class that is interfaced with by Python
 	public:
 	// Constructor
-	PYNBODY(state_type &IC, SpiceEpoch epoch, const double m, const double l, double TOF, std::vector<double> t_eval){
-		double G;
-		G = (6.67430e-11/pow(1000,3)); //  # km3/kg/s2	
-		// Define bodies
-		SpiceBody Earth("EARTH", 399, 3.9860043543609593e+05);
-		SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
-		SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
-		SpiceBody Jupiter("JUPITER BARYCENTER", 5, 1.2671276480000021e+08);
-
-		// Initialize our N-body system
-		NBODY nbody_sys(IC, epoch, m, l, Earth, {Moon, Sun, Jupiter});
+	PYNBODY(state_type &IC, SpiceEpoch epoch, NBodyModel nbd, double TOF, std::vector<double> t_eval){
+        // Initialize the state propagation class
+		NBODY nbody_sys(IC, epoch, nbd);
 		
 		// Create observer class
 		PropObserver observer{}; 
@@ -392,31 +376,23 @@ class PYNBODY{
 PYBIND11_MODULE(casper, m) {
     m.doc() = "CASPER - Python ephemeris model integrated in C++"; // optional module docstring
 
-  //  py::class_<SpiceBody>(m, "SpiceBody")
-//	    .def(py::init<const string &, const int &, const double &>())
-//	    .def_readonly("name", &SpiceBody::name)
-//	    .def_readonly("ID", &SpiceBody::ID)
-//	    .def_readonly("mu", &SpiceBody::mu);
-
-    //py::class_<NBODY>(m, "nbody")
-//	    .def(py::init<state_type &, string, const double, const double, SpiceBody, std::vector<SpiceBody>>())
-//	    .def_readonly("base_epoch", &NBODY::base_epoch_nd)
-//	    .def_readonly("IC", &NBODY::IC)
-//	    .def("propagate", &NBODY::propagate);
-
-  //  py::class_<PropObserver>(m, "PropObserver")
-//	    .def(py::init<>())
-//	    .def_readonly("t", &PropObserver::t)
-//	    .def_readonly("x", &PropObserver::x);
+    py::class_<SpiceBody>(m, "SpiceBody")
+	    .def(py::init<const string &, const int &, const double &>())
+	    .def_readonly("name", &SpiceBody::name)
+	    .def_readonly("ID", &SpiceBody::ID)
+	    .def_readonly("mu", &SpiceBody::mu);
 
     py::class_<SpiceEpoch>(m, "SpiceEpoch")
         .def(py::init<SpiceDouble>())
         .def(py::init<string>());
 
     py::class_<PYNBODY>(m, "PyNbody")
-	    .def(py::init<state_type &, SpiceEpoch, const double, const double, double, std::vector<double>>())
+	    .def(py::init<state_type &, SpiceEpoch, NBodyModel, double, std::vector<double>>())
 	    .def_readonly("x_states", &PYNBODY::x_states)
 	    .def_readonly("t_states", &PYNBODY::t_states);
+    
+    py::class_<NBodyModel>(m, "NBodyModel")
+        .def(py::init<const double, const double, SpiceBody, std::vector<SpiceBody>>());
 
 }
 #endif
@@ -426,12 +402,16 @@ PYBIND11_MODULE(casper, m) {
 int main(){
 	cout<<"testing part now running"<<endl;
 
-	const double G ((6.67430e-11/pow(1000,3))); //  # km3/kg/s2
-
+	const double G ((6.67430e-11/1e9)); //  # km3/kg/s2
+    // Define the NBodyModel class
 	SpiceBody Earth("EARTH", 399, 3.9860043543609593e+05);
 	SpiceBody Moon("MOON", 301, 4.9028000661637961e+03);
 	SpiceBody Sun("SUN", 10, 1.3271244004193930e+11);
 	SpiceBody Jupiter("JUPITER BARYCENTER", 5, 126712767.8578);
+	const double m_star ((Earth.mu+Moon.mu)/G);
+	const double l_star (3.8474799197904585e+05);
+    NBodyModel nbd(m_star, l_star, Earth, {Moon, Sun, Jupiter});
+
 	// Define 48-state vector. Arbitrary Lyapunov initial state
 	state_type IC_vector {0.18889952, -0.86798499, -0.34129653,  0.48008814,  0.11764799,  0.00512411,
           1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // initialize STM with
@@ -441,12 +421,10 @@ int main(){
           0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // and initialize epoch partial
-	const double m_star ((Earth.mu+Moon.mu)/G);
-	const double l_star (3.8474799197904585e+05);
     std::vector<double> times;
     SpiceEpoch epoch("March 1, 2000, 00:00:00.0000");
     cout<<epoch.utc_epoch<<endl;
-	NBODY nbody_system(IC_vector, epoch, m_star, l_star, Earth, {Moon});
+	NBODY nbody_system(IC_vector, epoch, nbd);
 	cout <<"Length of IC: "<< nbody_system.n_IC << endl;
 	nbody_system.EOM_STM(nbody_system.IC, nbody_system.IC, nbody_system.base_epoch_nd);	
 	PropObserver obs{};

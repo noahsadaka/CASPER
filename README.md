@@ -11,7 +11,7 @@ Very much a work in progress
  - [x] choose whether to propagate the STM or not depending on the size of the initial condition vector
  - [x] throw exceptions if the initial condition vector is not a 6-vector or a 42-vector
  - [ ] implement event finding
- - [ ] add options to specify what the central body and perturbing bodies are from Python
+ - [x] add options to specify what the central body and perturbing bodies are from Python
  - [x] Use fewer time steps if integrating for corrections vs integrating for detailed state history and/or plotting
  - [x] Implement some sort of a smart Spice time class so I can pass it an epoch string or an ET
 

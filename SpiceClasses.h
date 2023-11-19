@@ -2,6 +2,7 @@
 #define CASPER_SPICE_BODIES_H
 
 #include <string>
+#include <cmath>
 
 #include "ephem_utils.h"
 
@@ -38,6 +39,19 @@ class SpiceBody{
 			ID = I;
 			mu = m;
 		};
+};
+
+class cr3bp_system{
+	public:
+		double m_star;
+		double l_star;
+		double t_star;
+	cr3bp_system(const double m, const double l){
+		const double G ((6.67430e-11/pow(1000,3)));
+		m_star = m;
+		l_star = l;
+		t_star = 1/pow(m*G/pow(l,3), 0.5);
+	};
 };
 
 #endif
